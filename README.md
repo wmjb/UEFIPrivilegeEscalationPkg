@@ -2,7 +2,13 @@
 
 This tool allows you to run any given code in the Secure PL1 state of the Cortex-A9 CPU cores. This is based of off [Yahallo by imbushuo](https://github.com/NekomimiRouter/yahallo).
 
+
+what we have here is the efi app loading the exploit payload into core 0 smc handler, also loading an exploit payload2 into memory for core 1. the efi app sets the smc call address of core 1 to it's exploit payload in memory. the secondary core is launched with an entry point pointing to a "payload_ secondary" payload loaded by the efi app, which is just asm of an smc call. then the efi app waits for clearing of mailbox of core 1.
+once the mailbox is cleared the core 0 payload launches u-boot put in memory by the efi app.
+
 More information will follow.
+
+
 
 
 payload - core0 payload. output as payload.bin to be copied to root of usb drive
