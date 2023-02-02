@@ -102,7 +102,7 @@ void start_secondary_core(int cpu) {
 		}
 		*/
 	}while(mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point)) != 0);
-	//Print(L"interrupt done?!\r\n");
+
                 uint32_t reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
                 uart_print("entry: %08x\r\n", reg);
                 reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
@@ -229,13 +229,11 @@ EFI_STATUS PayloadLoaderEntryPoint(
 	// we copy the payload to TZ memory
 
 	memcpy_usr((void*)(0x80112174), (const void*)0x83000000, (size_t)fileSize1);
-	mem_write(0x82002880U, 0x83100000U); // change the secondary core (1) SMC address to our payload.
+	mem_write(0x82002880U, 0x83100000U); // change the secondary core (1) SMC handler pointer address (0x82002880) to our payload2 address (0x83100000)
 
 	ArmDataSynchronizationBarrier();
-	uart_print("UEFI: payload copied\r\n");
-	// Don't copy U-Boot as we can execute from everywhere in Secure World once TTB is disarmed
-	//memcpy_usr((void*)(0x81000000), (const void*)0x84000000, (size_t)fileSize2);
-
+	uart_print("UEFI: payloads copied\r\n");
+	
 	// Payload is now in place. Enable MMU to use UEFI one last time
 	ArmEnableMmu();
 	uart_print("UEFI: MMU enabled\r\n");
