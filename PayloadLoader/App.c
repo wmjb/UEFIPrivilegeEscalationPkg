@@ -229,7 +229,7 @@ EFI_STATUS PayloadLoaderEntryPoint(
 	// we copy the payload to TZ memory
 
 	memcpy_usr((void*)(0x80112174), (const void*)0x83000000, (size_t)fileSize1);
-	mem_write(0x82002880U, 0x83100000U);
+	mem_write(0x82002880U, 0x83100000U); // change the secondary core (1) SMC address to our payload.
 
 	ArmDataSynchronizationBarrier();
 	uart_print("UEFI: payload copied\r\n");
