@@ -62,17 +62,10 @@ static void acpi_parking_protocol_cpu_init(void)
 #define mem_clear(base, value) _R_MEMEG(addr) &= ~value
 #define mem_set(base, value) _RE_MEMG(addr) |= value
 void start_secondary_core(int cpu) {
+	
 	acpi_parking_protocol_cpu_init();
 
-	//Print(L"Let's goooo\r\n");
-
-	//Print(L"mailbox_address: %p\r\n", &cpu_mailbox_entries[cpu].mailbox->cpu_id);
-
-	//Print(L"mailbox_value: %08x\r\n", *((uint32_t*)0x82002000U));
-
-	uint32_t cpu_id = *((uint32_t*)0x82002000U); //mem_read(cpu_mailbox_entries[cpu].mailbox->cpu_id);
-	//Print(L"cpu: %d\r\n", cpu);
-	//Print(L"cpu_id: %d\r\n", cpu_id);
+	uint32_t cpu_id = *((uint32_t*)0x82002000U); 
 
 	if (cpu_id != ~0U) {
 		Print(L"something wrong\r\n");
@@ -80,28 +73,25 @@ void start_secondary_core(int cpu) {
 
 	// Let the secondary core use the payload loaded by UEFI.
 	//Print(L"entry_write: %p\r\n", (uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
+	
 	mem_write((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point), 0x83800000U);
-  ArmDataMemoryBarrier();
-  ArmDataSynchronizationBarrier();
+ 	ArmDataMemoryBarrier();
+  	ArmDataSynchronizationBarrier();
 	//Print(L"cpu_write: %p\r\n", (uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
+	
 	mem_write((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id), cpu);
-  ArmDataMemoryBarrier();
-  ArmDataSynchronizationBarrier();
+  	ArmDataMemoryBarrier();
+  	ArmDataSynchronizationBarrier();
+	
 	// Interrupt magic.
 	// interrupt according to ACPI PP 0x00fe0000
 	// reg: 0xf00
 	// base: 0x50041000
-
-	//Print(L"mailbox_cpu_id: %08x\r\n", *((uint32_t*)0x82002000U));
-	//Print(L"mailbox_entry: %08x\r\n", *((uint32_t*)0x82002008U));
-
-	//set_ns();
-
-	//Print(L"now the interrupt\r\n");
-	mem_write(0x50041f00U, 0x00fe0000U);
-mem_write(0x50041f00U, 0x00fe0000U);
-mem_write(0x50041f00U, 0x00fe0000U);
-	do {
+	
+	mem_write(0x50041f00U, 0x00fe0000U); // send interrupt to trigger secondary core unpark
+	mem_write(0x50041f00U, 0x00fe0000U); // do it again just because.
+	
+	do { // loop that waits for the mailbox to be cleared when secondary core starts
 		uint32_t reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
 		uart_print("entry: %08x\r\n", reg);
 		reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
