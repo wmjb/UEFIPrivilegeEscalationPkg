@@ -1,4 +1,4 @@
-﻿#include "Include/Application.h"
+#include "Include/Application.h"
 #include <Library/MemoryAllocationLib.h>
 
 EFI_STATUS loadPayloadIntoMemory(EFI_PHYSICAL_ADDRESS memoryAddress, short unsigned int fileName[], size_t* fileSize);
@@ -61,6 +61,7 @@ static void acpi_parking_protocol_cpu_init(void)
 #define mem_write(addr, value) _MEM(addr) = value
 #define mem_clear(base, value) _R_MEMEG(addr) &= ~value
 #define mem_set(base, value) _RE_MEMG(addr) |= value
+
 void start_secondary_core(int cpu) {
 	
 	acpi_parking_protocol_cpu_init();
@@ -72,13 +73,12 @@ void start_secondary_core(int cpu) {
 	}
 
 	// Let the secondary core use the payload loaded by UEFI.
-	//Print(L"entry_write: %p\r\n", (uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
+
 	
 	mem_write((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point), 0x83800000U);
  	ArmDataMemoryBarrier();
   	ArmDataSynchronizationBarrier();
-	//Print(L"cpu_write: %p\r\n", (uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
-	
+
 	mem_write((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id), cpu);
   	ArmDataMemoryBarrier();
   	ArmDataSynchronizationBarrier();
@@ -96,17 +96,14 @@ void start_secondary_core(int cpu) {
 		uart_print("entry: %08x\r\n", reg);
 		reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
 		uart_print("cpu_id: %08x\r\n", reg);
-		/*
-		for (int i = 0; i < 60000000; i++) {
-			asm("nop");
-		}
-		*/
+
 	}while(mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point)) != 0);
 
-                uint32_t reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
-                uart_print("entry: %08x\r\n", reg);
-                reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
-                uart_print("cpu_id: %08x\r\n", reg);
+	//output mailbox state to uart.
+        uint32_t reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->entry_point));
+        uart_print("entry: %08x\r\n", reg);
+        reg = mem_read((uint32_t)(&cpu_mailbox_entries[cpu].mailbox->cpu_id));
+        uart_print("cpu_id: %08x\r\n", reg);
 
 }
 
@@ -125,7 +122,9 @@ EFI_STATUS PayloadLoaderEntryPoint(
 
 	// Fix Surface RT UEFI on-screen console
 	Print(L"Fixing T30 Console. You can't see me ;)\n");
-	Tegra3ConsoleOutputFixup();
+	
+	Tegra3ConsoleOutputFixup(); //fix console output 
+	
 	Print(L"Welcome to the Payload Loader\n");
 	uart_print("UEFI: Payload Loader\r\n");
 
@@ -133,71 +132,89 @@ EFI_STATUS PayloadLoaderEntryPoint(
 	Print(L"\tUnprotect TZ\n");
 	uart_print("Unprotect TZ\r\n");
 
-	PerformNvTegra3Exploit();
+	PerformNvTegra3Exploit(); // perform tz exploit to enable memory writes.
 
 	// Check if TZ is unprotected
 	// TrustZone memory is not mapped in normal world.
 	// Since I am lazy to modify PT, I decided to just turn off MMU
 	// and turn it back on later.
+	
 	ArmDisableFiq();
 	ArmDisableInterrupts();
 	ArmDisableCachesAndMmu();
+	
 	UINT32 Something = *((UINT32 *)(EFI_PHYSICAL_ADDRESS)0x80000000);
+	
 	ArmEnableMmu();
 	ArmEnableDataCache();
 	ArmEnableInstructionCache();
 	ArmEnableFiq();
 	ArmEnableInterrupts();
+	
 	Print(L"Something at 0x80000000 with exploit: 0x%08x\n", Something);
 	uart_print("Something at 0x80000000 with exploit: 0x%08x\n", Something);
+	
 	if (Something == 0xFFFFFFFF) {
 		Print(L"Something happened and the exploit doesn't work\n");
 		uart_print("Something happened and the exploit doesn't work\r\n");
 		Status = EFI_ABORTED;
 		FinalizeApp();
 	}
+	
 	uart_print("done exploit\r\n");
 	Print(L"done exploit\n");
 
 	// Load exploit payload into memory
 	Print(L"Loading exploit payload into memory!\n");
 	uart_print("Loading exploit payload into memory!\r\n");
+	
 	size_t fileSize1 = 0;
+	
 	Status = loadPayloadIntoMemory((EFI_PHYSICAL_ADDRESS)0x83000000, L"\\payload.bin", &fileSize1);
+	
 	if (Status != EFI_SUCCESS)
 	{
 		Print(L"\tFailed at loading payload!\n");
 		uart_print("Failed at loading payload!\r\n");
 		FinalizeApp();
 	}
+	
 	Print(L"\tPayload is now in memory!\n");
 	uart_print("Payload is now in memory!\r\n");
 
         // Load exploit payload into memory
         Print(L"Loading exploit payload into memory!\n");
         uart_print("Loading exploit payload into memory!\r\n");
-        size_t fileSize1b = 0;
-        Status = loadPayloadIntoMemory((EFI_PHYSICAL_ADDRESS)0x83100000, L"\\payload2.bin", &fileSize1b);
-        if (Status != EFI_SUCCESS)
+        
+	size_t fileSize1b = 0;
+        
+	Status = loadPayloadIntoMemory((EFI_PHYSICAL_ADDRESS)0x83100000, L"\\payload2.bin", &fileSize1b);
+        
+	if (Status != EFI_SUCCESS)
         {
                 Print(L"\tFailed at loading payload!\n");
                 uart_print("Failed at loading payload!\r\n");
                 FinalizeApp();
         }
-        Print(L"\tPayload is now in memory!\n");
+        
+	Print(L"\tPayload is now in memory!\n");
         uart_print("Payload is now in memory!\r\n");
 
 	// Load exploit for secondary core into memory
 	Print(L"Loading secondary payload into memory!\n");
 	uart_print("Loading secondary payload into memory!\r\n");
+	
 	size_t fileSize3 = 0;
+	
 	Status = loadPayloadIntoMemory((EFI_PHYSICAL_ADDRESS)0x83800000, L"\\payload_secondary.bin", &fileSize3);
+	
 	if (Status != EFI_SUCCESS)
  	{
 		Print(L"\tFailed at loading secondary payload!\n");
 		uart_print("Failed at loading secondary payload!\r\n");
 		FinalizeApp();
 	}
+	
 	Print(L"\tSecondary is now in memory!\n");
 	uart_print("Secondary is now in memory!\r\n");
 
@@ -205,14 +222,18 @@ EFI_STATUS PayloadLoaderEntryPoint(
 	// Put uboot into memory
 	Print(L"Loading u-boot into memory!\n");
 	uart_print("Loading u-boot into memory!\r\n");
+	
 	size_t fileSize2 = 0;
+	
 	Status = loadPayloadIntoMemory((EFI_PHYSICAL_ADDRESS)0x84000000, L"\\u-boot-dtb.bin", &fileSize2);
+	
 	if (Status != EFI_SUCCESS)
 	{
 		Print(L"\tFailed at loading u-boot!\n");
 		uart_print("Failed at loading u-boot!\r\n");
 		FinalizeApp();
 	}
+	
 	Print(L"\tU-boot is now in memory!\n");
 	uart_print("U-boot is now in memory!\r\n");
 
@@ -236,12 +257,19 @@ EFI_STATUS PayloadLoaderEntryPoint(
 	
 	// Payload is now in place. Enable MMU to use UEFI one last time
 	ArmEnableMmu();
+	
 	uart_print("UEFI: MMU enabled\r\n");
+	
 	ArmEnableDataCache();
+	
 	uart_print("UEFI: D-Cache enabled\r\n");
+	
 	ArmEnableInstructionCache();
+	
 	uart_print("UEFI: I-Cache enabled\r\n");
+	
 	// UEFI funtions can be used again.
+	
 	ArmEnableFiq();
 	ArmEnableInterrupts();
 
@@ -256,14 +284,13 @@ EFI_STATUS PayloadLoaderEntryPoint(
 
 	start_secondary_core(1);
 
-	// EXIT BOOT SERVICE AS TEST
+	// EXIT BOOT SERVICES
 	UINTN MemMapSize = 0;
 	EFI_MEMORY_DESCRIPTOR* MemMap = 0;
 	UINTN MapKey = 0;
 	UINTN DesSize = 0;
 	UINT32 DesVersion = 0;
 
-	// May pass some parameters if needed?
 	gBS->GetMemoryMap(
                 &MemMapSize,
                 MemMap,
@@ -283,12 +310,7 @@ EFI_STATUS PayloadLoaderEntryPoint(
                 Print(L"Failed to exit BS\n");
                 uart_print("BootService NOT gone ;(\r\n");
         }
-	// EXIT BOOT SERVICE AS TEST
-
 	
-
-//	while(1);
-
 	// This should trigger an SMC, jump to the payload and output stuff to uart. Hopefully.
 	ArmCallSmcHelper(0, 0, 0, 0);
 
@@ -305,10 +327,6 @@ VOID FinalizeApp(VOID)
 {
 	// Let people wait for stroke
 	uart_print("!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
-	uart_print("!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
-	uart_print("!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
-	Print(L"!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
-	Print(L"!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
 	Print(L"!!! PLEASE RESET YOUR DEVICE MANUALLY USING THE POWER BUTTON !!!\n");
 	CpuDeadLoop();
 }
@@ -461,10 +479,6 @@ EFI_STATUS loadPayloadIntoMemory(EFI_PHYSICAL_ADDRESS memoryAddress, short unsig
 	*fileSize = payloadFileSize;
 
 	Print(L"File is now in memory at location 0x%x!\n", payloadFileBuffer);
-
-	// Calc hash of loaded data
-
-	//uart_print("Printing the 1st 4 bytes at 0x84000000: %08x\r\n", *((uint32_t*)(0x84000000)));
 
 	return EFI_SUCCESS;
 }
